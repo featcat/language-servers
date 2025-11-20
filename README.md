@@ -1,6 +1,6 @@
 # Monaco Language Servers
 
-This project `monaco-language-servers` provides standalone language servers for Monaco Editor, containerized with Docker.
+This project `language-servers` provides standalone language servers for Monaco Editor, containerized with Docker.
 
 ## Features
 - **JSON Server**: Port 30000
@@ -15,21 +15,21 @@ This project `monaco-language-servers` provides standalone language servers for 
 ### Build Docker Image
 ```bash
 # Standard build
-docker build -t monaco-language-servers .
+docker build -t language-servers .
 
 # Build for Linux AMD64
-docker build --platform linux/amd64 -t monaco-language-servers .
+docker build --platform linux/amd64 -t language-servers .
 ```
 
 ### Run All Servers
 ```bash
-docker run -p 30000:30000 -p 30001:30001 -p 30002:30002 -p 30005:30005 -p 30006:30006 monaco-language-servers
+docker run -p 30000:30000 -p 30001:30001 -p 30002:30002 -p 30005:30005 -p 30006:30006 language-servers
 ```
 
 ### Run Specific Servers
 To run only Python and JSON servers:
 ```bash
-docker run -e START_SERVERS="python,json" -p 30000:30000 -p 30001:30001 monaco-language-servers
+docker run -e START_SERVERS="python,json" -p 30000:30000 -p 30001:30001 language-servers
 ```
 
 ### Configuration

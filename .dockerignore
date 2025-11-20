@@ -1,0 +1,37 @@
+# Node modules
+node_modules
+npm-debug.log
+
+# Build output
+dist
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+*.md
+
+# IDE
+.vscode
+.idea
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tests
+*.test.js
+*.spec.js
+test
+tests
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Other
+.env
+.env.*
+*.log

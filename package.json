@@ -1,5 +1,5 @@
 {
-    "name": "monaco-language-servers",
+    "name": "language-servers",
     "version": "1.0.0",
     "type": "module",
     "description": "Standalone language servers for Monaco Editor",
