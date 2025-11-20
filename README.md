@@ -8,33 +8,109 @@ This project `language-servers` provides standalone language servers for Monaco 
 - **TypeScript Server** (typescript-language-server): Port 30002
 - **Golang Server** (Gopls): Port 30005
 - **Rust Server** (rust-analyzer): Port 30006
-- **Selective Startup**: Control which servers start via `START_SERVERS` env var.
+- **Selective Startup**: Control which servers start via `START_SERVERS` env var
+- **Multi-platform Support**: linux/amd64, linux/arm64
+- **Auto-build on Tag Push**: GitHub Actions automatically builds and publishes to Docker Hub
 
-## Usage
+## Quick Start
 
-### Build Docker Image
+### Pull from Docker Hub
 ```bash
-# Standard build
-docker build -t language-servers .
-
-# Build for Linux AMD64
-docker build --platform linux/amd64 -t language-servers .
+docker pull your-dockerhub-username/language-servers:latest
 ```
 
 ### Run All Servers
 ```bash
-docker run -p 30000:30000 -p 30001:30001 -p 30002:30002 -p 30005:30005 -p 30006:30006 language-servers
+docker run -d \
+  -p 30000:30000 -p 30001:30001 -p 30002:30002 -p 30005:30005 -p 30006:30006 \
+  your-dockerhub-username/language-servers:latest
 ```
+
+### Using Docker Compose (Recommended)
+```bash
+# Edit docker-compose.yml with your settings
+docker-compose up -d
+```
+
+## Configuration
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GOPLS_WORKSPACE` | `/workspace` | Golang language server workspace path |
+| `START_SERVERS` | `json,python,golang,typescript,rust` | Comma-separated list of servers to start |
 
 ### Run Specific Servers
 To run only Python and JSON servers:
 ```bash
-docker run -e START_SERVERS="python,json" -p 30000:30000 -p 30001:30001 language-servers
+docker run -d \
+  -e START_SERVERS="python,json" \
+  -p 30000:30000 -p 30001:30001 \
+  your-dockerhub-username/language-servers:latest
 ```
 
-### Configuration
-- `GOPLS_WORKSPACE`: Set the workspace path for Gopls (default: `/workspace`).
-  - Mount your code: `-v /path/to/code:/workspace`
+### Mount Workspace for Golang
+```bash
+docker run -d \
+  -p 30005:30005 \
+  -e GOPLS_WORKSPACE=/workspace \
+  -e START_SERVERS=golang \
+  -v /path/to/your/go/project:/workspace \
+  your-dockerhub-username/language-servers:latest
+```
+
+### Using .env File
+```bash
+# Copy the example file
+cp .env.example .env
+
+# Edit .env with your settings
+vim .env
+
+# docker-compose will automatically use .env
+docker-compose up -d
+```
+
+## Building from Source
+
+### Local Build
+```bash
+# Standard build
+docker build -t language-servers .
+
+# Multi-platform build
+docker buildx build --platform linux/amd64,linux/arm64 -t language-servers .
+```
+
+### Automated Builds (GitHub Actions)
+
+The project uses GitHub Actions to automatically build and push multi-platform Docker images to Docker Hub when you push a git tag.
+
+#### Setup
+
+1. **Configure GitHub Secrets**
+   - Go to: Repository → Settings → Secrets and variables → Actions
+   - Add these secrets:
+     - `DOCKERHUB_USERNAME`: Your Docker Hub username
+     - `DOCKERHUB_TOKEN`: Docker Hub Access Token ([Get it here](https://hub.docker.com/settings/security))
+
+2. **Create and Push a Tag**
+   ```bash
+   # Create a tag
+   git tag 1.0.0
+
+   # Or create an annotated tag
+   git tag -a 1.0.0 -m "Release version 1.0.0"
+
+   # Push the tag
+   git push origin 1.0.0
+   ```
+
+3. **Automatic Build**
+   - GitHub Actions will automatically build for `linux/amd64` and `linux/arm64`
+   - Images will be pushed with tags: `1.0.0` and `latest`
+   - View progress in the **Actions** tab on GitHub
 
 ## Development
 1. Install dependencies: `npm install`

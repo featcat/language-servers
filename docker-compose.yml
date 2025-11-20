@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  language-servers:
+    image: your-dockerhub-username/language-servers:latest
+    ports:
+      - "30000:30000"  # JSON server
+      - "30001:30001"  # Python server
+      - "30002:30002"  # TypeScript server
+      - "30005:30005"  # Golang server
+      - "30006:30006"  # Rust server
+    environment:
+      - GOPLS_WORKSPACE=/workspace
+      - START_SERVERS=json,python,golang,typescript,rust
+    volumes:
+      # Mount your local workspace to the container
+      - ./workspace:/workspace
+    restart: unless-stopped

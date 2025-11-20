@@ -29,4 +29,8 @@ RUN npm run build
 
 EXPOSE 30000 30001 30002 30005 30006
 
+# Set default environment variables
+ENV GOPLS_WORKSPACE=/workspace
+ENV START_SERVERS=json,python,golang,typescript,rust
+
 CMD ["npm", "start"]
