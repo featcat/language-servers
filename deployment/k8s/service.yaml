@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: language-servers
+  namespace: backendhub
+  labels:
+    app: language-servers
+spec:
+  type: ClusterIP
+  ports:
+  - port: 30000
+    targetPort: 30000
+    name: json
+  - port: 30001
+    targetPort: 30001
+    name: python
+  - port: 30002
+    targetPort: 30002
+    name: typescript
+  - port: 30005
+    targetPort: 30005
+    name: golang
+  - port: 30006
+    targetPort: 30006
+    name: rust
+  selector:
+    app: language-servers

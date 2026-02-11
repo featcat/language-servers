@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: language-servers
+  namespace: backendhub
+  labels:
+    app: language-servers
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: language-servers
+  template:
+    metadata:
+      labels:
+        app: language-servers
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: main
+        image: harbor.et.xlocs.com/backendhub/language-servers:v0.0.3
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 30000
+          name: json
+        - containerPort: 30001
+          name: python
+        - containerPort: 30002
+          name: typescript
+        - containerPort: 30005
+          name: golang
+        - containerPort: 30006
+          name: rust
+        readinessProbe:
+          tcpSocket:
+            port: 30001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        livenessProbe:
+          tcpSocket:
+            port: 30001
+          initialDelaySeconds: 10
+          periodSeconds: 5
+        resources:
+          limits:
+            cpu: "2"
+            memory: "4Gi"
+          requests:
+            cpu: "100m"
+            memory: "512Mi"
+      imagePullSecrets:
+        - name: backendhub-registry
+      terminationGracePeriodSeconds: 30

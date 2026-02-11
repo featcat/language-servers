@@ -1,0 +1,51 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: language-servers-internal
+  namespace: backendhub
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  rules:
+    - host: lsp.et.xlocs.com
+      http:
+        paths:
+          - path: "/json"
+            pathType: Prefix
+            backend:
+              service:
+                name: language-servers
+                port:
+                  number: 30000
+          - path: "/python"
+            pathType: Prefix
+            backend:
+              service:
+                name: language-servers
+                port:
+                  number: 30001
+          - path: "/typescript"
+            pathType: Prefix
+            backend:
+              service:
+                name: language-servers
+                port:
+                  number: 30002
+          - path: "/golang"
+            pathType: Prefix
+            backend:
+              service:
+                name: language-servers
+                port:
+                  number: 30005
+          - path: "/rust"
+            pathType: Prefix
+            backend:
+              service:
+                name: language-servers
+                port:
+                  number: 30006
+  tls:
+    - hosts:
+        - lsp.et.xlocs.com

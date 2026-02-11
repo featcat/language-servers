@@ -157,3 +157,42 @@ To add a new language server:
 4.  **Expose Port**:
     Add the new port (e.g., `30006`) to the `EXPOSE` instruction in `Dockerfile` and your `docker run` command.
 
+
+## Kubernetes Deployment
+
+You can deploy the language servers to a Kubernetes cluster using the provided manifests.
+
+### Prerequisites
+
+- A running Kubernetes cluster
+- `kubectl` configured to connect to your cluster
+- (Optional) `kustomize` if you prefer using it
+
+### Deploy with kubectl
+
+```bash
+kubectl apply -f deployment/k8s
+```
+
+This will create:
+- A Deployment `language-servers` with 1 replica
+- A Service `language-servers` exposing ports 30000-30006
+- An Ingress `language-servers-internal` for `lsp.et.xlocs.com`
+
+### Deploy with Kustomize
+
+```bash
+kustomize build deployment/k8s | kubectl apply -f -
+```
+
+### Ingress Configuration
+
+The Ingress is configured for `lsp.et.xlocs.com` with the following path mappings:
+
+- `/json` -> port 30000
+- `/python` -> port 30001
+- `/typescript` -> port 30002
+- `/golang` -> port 30005
+- `/rust` -> port 30006
+
+WebSockets are supported via `websecure` entrypoint.
