@@ -12,6 +12,8 @@ export const runPythonServer = () => {
     const baseDir = resolve(getLocalDirectory(import.meta.url));
     // dist/servers/python/main.js -> ../../../node_modules...
     const processRunPath = resolve(baseDir, '../../../node_modules/pyright/dist/pyright-langserver.js');
+    const pythonWorkspace = process.env.PYTHON_WORKSPACE || '/workspace/python';
+
     runLanguageServer({
         serverName: 'PYTHON',
         pathName: '/python',
@@ -21,6 +23,15 @@ export const runPythonServer = () => {
             processRunPath,
             '--stdio'
         ],
+        spawnOptions: {
+            env: {
+                ...process.env,
+                // Pyright discovers third-party packages via PYTHONPATH.
+                // Place .pyi stubs or package source in /workspace/python/
+                // and Pyright will pick them up automatically.
+                PYTHONPATH: pythonWorkspace,
+            }
+        },
         wsServerOptions: {
             noServer: true,
             perMessageDeflate: false,
@@ -40,3 +51,4 @@ export const runPythonServer = () => {
         }
     });
 };
+

@@ -24,8 +24,17 @@ export interface LanguageServerRunConfig {
     serverPort: number;
     runCommand: LanguageName | string;
     runCommandArgs: string[];
-    wsServerOptions: ServerOptions,
+    wsServerOptions: ServerOptions;
     spawnOptions?: cp.SpawnOptions;
+    /**
+     * Optional message interceptor for client→server messages.
+     * If the handler sends a synthetic response and returns `true`,
+     * the message is NOT forwarded to the LSP process.
+     *
+     * @param message  - parsed JSON-RPC message from the client
+     * @param reply    - send a raw JSON-RPC string back to the client
+     */
+    interceptClientMessage?: (message: unknown, reply: (data: string) => void) => boolean;
 }
 
 /**
@@ -67,6 +76,12 @@ export const upgradeWsServer = (runconfig: LanguageServerRunConfig,
         const pathName = request.url ? new URL(request.url, baseURL).pathname : undefined;
         if (pathName === runconfig.pathName) {
             config.wss.handleUpgrade(request, socket, head, webSocket => {
+                // Helper: send a synthetic JSON-RPC response back to the client
+                const reply = (data: string) =>
+                    webSocket.send(data, err => {
+                        if (err) console.error(`[${runconfig.serverName}] reply error:`, err);
+                    });
+
                 const socket: IWebSocket = {
                     send: content => webSocket.send(content, error => {
                         if (error) {
@@ -74,7 +89,17 @@ export const upgradeWsServer = (runconfig: LanguageServerRunConfig,
                         }
                     }),
                     onMessage: cb => webSocket.on('message', (data) => {
-                        console.log(data.toString());
+                        // Run optional interceptor before forwarding to LSP process
+                        if (runconfig.interceptClientMessage) {
+                            try {
+                                const parsed: unknown = JSON.parse(data.toString());
+                                if (runconfig.interceptClientMessage(parsed, reply)) {
+                                    return; // Intercepted – skip forwarding to LSP
+                                }
+                            } catch {
+                                // Non-JSON frame, fall through
+                            }
+                        }
                         cb(data);
                     }),
                     onError: cb => webSocket.on('error', cb),

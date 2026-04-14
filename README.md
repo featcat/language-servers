@@ -8,9 +8,12 @@ This project `language-servers` provides standalone language servers for Monaco 
 - **TypeScript Server** (typescript-language-server): Port 30002
 - **Golang Server** (Gopls): Port 30005
 - **Rust Server** (rust-analyzer): Port 30006
-- **Selective Startup**: Control which servers start via `START_SERVERS` env var
-- **Multi-platform Support**: linux/amd64, linux/arm64
-- **Auto-build on Tag Push**: GitHub Actions automatically builds and publishes to Docker Hub
+- **Protobuf Server** (buf lsp): Port 30007
+- **Per-Language Workspace Isolation**: Each language has a dedicated workspace directory (`/workspace/{language}`) to prevent conflicts.
+- **Built-in Package Management Support**: Caches for tools like `go get` and `cargo add` are automatically targeted into the workspace volume for seamless persistence.
+- **Selective Startup**: Control which servers start via `START_SERVERS` env var.
+- **Multi-platform Support**: linux/amd64, linux/arm64.
+- **Auto-build on Tag Push**: GitHub Actions automatically builds and publishes to Docker Hub.
 
 ## Quick Start
 
@@ -19,10 +22,13 @@ This project `language-servers` provides standalone language servers for Monaco 
 docker pull your-dockerhub-username/language-servers:latest
 ```
 
-### Run All Servers
+### Run Servers (with Workspace Persistence)
+We strongly recommend mounting a host directory to `/workspace` so that third-party packages, caches, and files persist across restarts.
+
 ```bash
 docker run -d \
-  -p 30000:30000 -p 30001:30001 -p 30002:30002 -p 30005:30005 -p 30006:30006 \
+  -p 30000:30000 -p 30001:30001 -p 30002:30002 -p 30005:30005 -p 30006:30006 -p 30007:30007 \
+  -v /path/to/your/host/workspace:/workspace \
   your-dockerhub-username/language-servers:latest
 ```
 
@@ -32,45 +38,80 @@ docker run -d \
 docker-compose up -d
 ```
 
+---
+
+## Workspace Layout & Dependency Management
+
+To prevent file conflicts and ensure smooth package management, each language gets its own pre-scaffolded subdirectory inside `/workspace`. This layout enforces single-volume mount migrations (moving the server is just copying the host folder).
+
+```text
+/workspace/
+├── python/       ← Python third-party packages (e.g. from pip install)
+│   ├── main.py   ← (Pre-created empty file to anchor the Pyright root)
+│   └── pyrightconfig.json
+├── golang/       ← Go module workspace
+│   ├── go.mod    ← (Pre-created base go.mod)
+│   ├── src/      
+│   └── pkg/mod/  ← Cache for `go get` (GOMODCACHE)
+├── typescript/   
+│   └── node_modules/ ← `npm install` packages
+├── protobuf/     ← `.proto` dependencies
+└── rust/         
+    ├── Cargo.toml ← (Pre-created base Cargo.toml)
+    └── .cargo/    ← Cache for `cargo add` / `cargo build` (CARGO_HOME)
+```
+
+### Installing Dependencies for Code Completion
+Because language package managers are routed into the workspace volume, you can install third-party dependencies from the hosting environment or inside the running container. The Language Servers will automatically detect them to offer proper typing, definitions, and completions.
+
+- **Python**: `docker exec -it <container_name> pip install requests` (Pyright is mapped to seamlessly pick this up).
+- **Golang**: `docker exec -it -w /workspace/golang <container_name> go get github.com/gin-gonic/gin`
+- **TypeScript**: `docker exec -it -w /workspace/typescript <container_name> npm install lodash`
+- **Rust**: `docker exec -it -w /workspace/rust <container_name> cargo add serde`
+- **Protobuf**: Place `.proto` files (e.g., `google/protobuf/timestamp.proto`) directly into `/path/to/your/host/workspace/protobuf/`.
+
+---
+
+## Frontend Client Integration Guide
+
+When connecting a Monaco Editor component (or any frontend UI) to these backend language servers via JSON-RPC/WebSockets, **you must adhere to the container's workspace path conventions.**
+
+The `rootUri` (or `workspaceFolders`) sent during the LSP `initialize` request and the `uri` of the actual text document being opened MUST point to that language's matching root:
+
+| Language | Port | Expected `rootUri` | Expected Document `uri` |
+|----------|------|--------------------|-------------------------|
+| Python | 30001 | `file:///workspace/python` | `file:///workspace/python/main.py` |
+| Golang | 30005 | `file:///workspace/golang` | `file:///workspace/golang/main.go` |
+| TypeScript | 30002 | `file:///workspace/typescript` | `file:///workspace/typescript/main.ts` |
+| Protobuf | 30007 | `file:///workspace/protobuf` | `file:///workspace/protobuf/main.proto` |
+| Rust | 30006 | `file:///workspace/rust` | `file:///workspace/rust/main.rs` |
+
+### Protobuf Specifics & System Robustness
+The `buf lsp` handles Protobuf functionality. Due to a known edge-case upstream in `buf` (where `import ""` triggers a process panic), our proxy layer (`main.ts`) dynamically intercepts and gracefully suppresses problematic `textDocument/codeAction` requests.
+
+**Frontend Implementation Tip**: Regardless of backend proxy protections, your Monaco WebSocket client should implement an auto-reconnect strategy:
+```javascript
+// Example Frontend Reconnect Schema
+socket.onclose = () => {
+   setTimeout(() => reconnectLanguageClient(), 1000); 
+};
+```
+This ensures high frontend availability even if a backend LSP process undergoes an unexpected crash.
+
+---
+
 ## Configuration
 
-### Environment Variables
+| Variable | Default Workspace | Description |
+|----------|-------------------|-------------|
+| `START_SERVERS` | `json,python,golang,typescript,rust,protobuf` | Servers to start |
+| `PYTHON_WORKSPACE` | `/workspace/python` | Python workspace mapping & PYTHONPATH |
+| `GOPLS_WORKSPACE` | `/workspace/golang` | Golang workspace and module cache |
+| `TS_WORKSPACE` | `/workspace/typescript` | Typescript workspace mapping |
+| `PROTO_WORKSPACE` | `/workspace/protobuf` | Protobuf workspace mapping |
+| `RUST_WORKSPACE` | `/workspace/rust` | Rust workspace mapping |
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GOPLS_WORKSPACE` | `/workspace` | Golang language server workspace path |
-| `START_SERVERS` | `json,python,golang,typescript,rust` | Comma-separated list of servers to start |
-
-### Run Specific Servers
-To run only Python and JSON servers:
-```bash
-docker run -d \
-  -e START_SERVERS="python,json" \
-  -p 30000:30000 -p 30001:30001 \
-  your-dockerhub-username/language-servers:latest
-```
-
-### Mount Workspace for Golang
-```bash
-docker run -d \
-  -p 30005:30005 \
-  -e GOPLS_WORKSPACE=/workspace \
-  -e START_SERVERS=golang \
-  -v /path/to/your/go/project:/workspace \
-  your-dockerhub-username/language-servers:latest
-```
-
-### Using .env File
-```bash
-# Copy the example file
-cp .env.example .env
-
-# Edit .env with your settings
-vim .env
-
-# docker-compose will automatically use .env
-docker-compose up -d
-```
+*You generally do not need to alter the workspace variables unless deploying custom Dockerfile layouts.*
 
 ## Building from Source
 
@@ -84,115 +125,31 @@ docker buildx build --platform linux/amd64,linux/arm64 -t language-servers .
 ```
 
 ### Automated Builds (GitHub Actions)
-
-The project uses GitHub Actions to automatically build and push multi-platform Docker images to Docker Hub when you push a git tag.
-
-#### Setup
-
-1. **Configure GitHub Secrets**
-   - Go to: Repository → Settings → Secrets and variables → Actions
-   - Add these secrets:
-     - `DOCKERHUB_USERNAME`: Your Docker Hub username
-     - `DOCKERHUB_TOKEN`: Docker Hub Access Token ([Get it here](https://hub.docker.com/settings/security))
-
-2. **Create and Push a Tag**
-   ```bash
-   # Create a tag
-   git tag 1.0.0
-
-   # Or create an annotated tag
-   git tag -a 1.0.0 -m "Release version 1.0.0"
-
-   # Push the tag
-   git push origin 1.0.0
-   ```
-
-3. **Automatic Build**
-   - GitHub Actions will automatically build for `linux/amd64` and `linux/arm64`
-   - Images will be pushed with tags: `1.0.0` and `latest`
-   - View progress in the **Actions** tab on GitHub
-
-## Development
-1. Install dependencies: `npm install`
-2. Build: `npm run build`
-3. Start: `npm start`
+The project is configured for GitHub Actions.
+1. Add `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` action secrets to GitHub.
+2. Tag and push (`git tag 1.0.0 && git push origin 1.0.0`) to trigger multi-architecture builds.
 
 ## Extending with New Language Servers
 
-To add a new language server:
-
 1.  **Create Server Logic**:
-    Create a new directory in `src/servers/<language>` and add a `main.ts`.
-    Use `runLanguageServer` from `../../common/language-server-runner.js` to configure your server.
-
+    Make `src/servers/<language>/main.ts`.
     ```typescript
     import { runLanguageServer } from '../../common/language-server-runner.js';
 
     export const runMyLangServer = () => {
         runLanguageServer({
             serverName: 'MYLANG',
-            pathName: '/mylang', // WebSocket path
-            serverPort: 30006,   // Port
-            runCommand: 'mylang-server', // Command to start the LS
+            pathName: '/mylang',
+            serverPort: 30008,
+            runCommand: 'mylang-server',
             runCommandArgs: ['--stdio'],
-            wsServerOptions: {
-                noServer: true,
-                perMessageDeflate: false
-            }
+            wsServerOptions: { noServer: true, perMessageDeflate: false }
         });
     };
     ```
 
-2.  **Register in Main**:
-    Import and call your `runMyLangServer` function in `src/main.ts`. Add it to the `startServers` logic.
-
-3.  **Update Dockerfile**:
-    Ensure the language runtime and the language server binary are installed in the `Dockerfile`.
-
-    ```dockerfile
-    # Example: Install MyLang
-    RUN apt-get install -y mylang
-    ```
-
-4.  **Expose Port**:
-    Add the new port (e.g., `30006`) to the `EXPOSE` instruction in `Dockerfile` and your `docker run` command.
-
+2.  **Register It**: Import your function into `src/main.ts`. Add it to `startServers()` and the `WORKSPACE_ROOTS` registry.
+3.  **Update Dockerfile**: Add OS install steps, `mkdir -p /workspace/<language>`, its Env mappings, and exposed ports.
 
 ## Kubernetes Deployment
-
-You can deploy the language servers to a Kubernetes cluster using the provided manifests.
-
-### Prerequisites
-
-- A running Kubernetes cluster
-- `kubectl` configured to connect to your cluster
-- (Optional) `kustomize` if you prefer using it
-
-### Deploy with kubectl
-
-```bash
-kubectl apply -f deployment/k8s
-```
-
-This will create:
-- A Deployment `language-servers` with 1 replica
-- A Service `language-servers` exposing ports 30000-30006
-- An Ingress `language-servers-internal` for `lsp.et.xlocs.com`
-
-### Deploy with Kustomize
-
-```bash
-kustomize build deployment/k8s | kubectl apply -f -
-```
-
-### Ingress Configuration
-
-The Ingress is configured for `lsp.et.xlocs.com` with the following path mappings:
-
-- `/json` -> port 30000
-- `/python` -> port 30001
-- `/typescript` -> port 30002
-- `/golang` -> port 30005
-- `/rust` -> port 30006
-
-WebSockets are supported via `websecure` entrypoint.
+Deploy using `kubectl apply -f deployment/k8s`. Note that volume persistence (e.g. mounting a proper `PersistentVolumeClaim` to `/workspace`) is recommended in clustered environments.
