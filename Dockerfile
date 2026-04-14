@@ -1,17 +1,28 @@
 FROM node:20-bullseye
 
-# Install Python
-RUN apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
+# Configure Debian mirrors and install Python
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    sed -i 's/security.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list && \
+    apt-get update && apt-get install -y python3 python3-pip && rm -rf /var/lib/apt/lists/*
+RUN pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 
 # Install Go
-COPY --from=golang:1.21 /usr/local/go /usr/local/go
+COPY --from=golang:1.25 /usr/local/go /usr/local/go
 ENV PATH=$PATH:/usr/local/go/bin:/root/go/bin
 
 # Install gopls (uses default GOPATH=/root/go during build)
+ENV GOPROXY=https://goproxy.cn,direct
 RUN go install golang.org/x/tools/gopls@latest
 
 # Install buf (for Protobuf Language Server)
-RUN npm install -g @bufbuild/buf
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm install -g @bufbuild/buf
+
+# Configure Rust mirrors
+ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
+ENV RUSTUP_UPDATE_ROOT="https://rsproxy.cn/rustup"
+RUN mkdir -p /root/.cargo && \
+    printf '[source.crates-io]\nreplace-with = "rsproxy-sparse"\n[source.rsproxy-sparse]\nregistry = "sparse+https://rsproxy.cn/index/"\n[net]\ngit-fetch-with-cli = true\n' > /root/.cargo/config.toml
 
 # Install Rust (uses default CARGO_HOME=~/.cargo during build)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -27,13 +38,13 @@ RUN rustup component add rust-analyzer
 # Migration: just copy the entire /host/workspace directory.
 # ────────────────────────────────────────────────────────────────────────────
 RUN mkdir -p /workspace/python \
-             /workspace/golang/src \
-             /workspace/golang/pkg/mod \
-             /workspace/golang/bin \
-             /workspace/typescript/node_modules \
-             /workspace/protobuf \
-             /workspace/rust \
-             /workspace/rust/.cargo/registry
+    /workspace/golang/src \
+    /workspace/golang/pkg/mod \
+    /workspace/golang/bin \
+    /workspace/typescript/node_modules \
+    /workspace/protobuf \
+    /workspace/rust \
+    /workspace/rust/.cargo/registry
 
 # Python: pyrightconfig.json lets Pyright discover packages placed in /workspace/python
 RUN printf '{\n  "pythonVersion": "3.11",\n  "pythonPlatform": "Linux",\n  "extraPaths": ["/workspace/python"]\n}\n' \
@@ -46,7 +57,9 @@ RUN touch /workspace/python/main.py
 RUN cd /workspace/golang && go mod init workspace
 
 # Rust: initialise a base Cargo.toml so `cargo add` works inside the container
-RUN cd /workspace/rust && cargo init --name workspace --vcs none
+RUN cd /workspace/rust && cargo init --name workspace --vcs none && \
+    mkdir -p /workspace/rust/.cargo && \
+    cp /root/.cargo/config.toml /workspace/rust/.cargo/config.toml
 
 WORKDIR /app
 
