@@ -6,7 +6,7 @@ import { resolve } from 'path';
 import { runLanguageServer } from '../../common/language-server-runner.js';
 import { LanguageName } from '../../common/server-commons.js';
 import { getLocalDirectory } from '../../utils/fs-utils.js';
-import { IncomingMessage } from 'http';
+
 
 export const runPythonServer = () => {
     const baseDir = resolve(getLocalDirectory(import.meta.url));
@@ -36,18 +36,23 @@ export const runPythonServer = () => {
             noServer: true,
             perMessageDeflate: false,
             clientTracking: true,
-            verifyClient: (
-                clientInfo: { origin: string; secure: boolean; req: IncomingMessage },
-                callback
-            ) => {
-                const parsedURL = new URL(`${clientInfo.origin}${clientInfo.req?.url ?? ''}`);
-                const authToken = parsedURL.searchParams.get('authorization');
-                if (authToken === 'UserAuth') {
-                    callback(true);
-                } else {
-                    callback(false);
-                }
-            }
+            // verifyClient: (
+            //     clientInfo: { origin: string; secure: boolean; req: IncomingMessage },
+            //     callback
+            // ) => {
+            //     try {
+            //         const parsedURL = new URL(clientInfo.req?.url || '', 'http://localhost');
+            //         const authToken = parsedURL.searchParams.get('authorization');
+            //         if (authToken === 'UserAuth') {
+            //             callback(true);
+            //         } else {
+            //             callback(false);
+            //         }
+            //     } catch (e) {
+            //         console.error('[PYTHON Server] verifyClient error:', e);
+            //         callback(false);
+            //     }
+            // }
         }
     });
 };

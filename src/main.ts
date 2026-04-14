@@ -23,11 +23,11 @@ import { runProtobufServer } from './servers/protobuf/main.js';
  *   Rust       → file:///workspace/rust
  */
 const WORKSPACE_ROOTS: Record<string, string> = {
-    python:     process.env.PYTHON_WORKSPACE || '/workspace/python',
-    golang:     process.env.GOPLS_WORKSPACE  || '/workspace/golang',
-    typescript: process.env.TS_WORKSPACE     || '/workspace/typescript',
-    protobuf:   process.env.PROTO_WORKSPACE  || '/workspace/protobuf',
-    rust:       process.env.RUST_WORKSPACE   || '/workspace/rust',
+    python: process.env.PYTHON_WORKSPACE || '/workspace/python',
+    golang: process.env.GOPLS_WORKSPACE || '/workspace/golang',
+    typescript: process.env.TS_WORKSPACE || '/workspace/typescript',
+    protobuf: process.env.PROTO_WORKSPACE || '/workspace/protobuf',
+    rust: process.env.RUST_WORKSPACE || '/workspace/rust',
 };
 
 const ensureWorkspaces = (servers: string[]): void => {
@@ -66,13 +66,35 @@ const ensureWorkspaces = (servers: string[]): void => {
                 if (!existsSync(goMod)) {
                     writeFileSync(goMod, 'module workspace\n\ngo 1.21\n');
                 }
+                const mainGo = path.join(root, 'main.go');
+                if (!existsSync(mainGo)) {
+                    writeFileSync(mainGo, 'package main\n\nfunc main() {\n}\n');
+                }
             } else if (lang === 'typescript') {
                 mkdirSync(path.join(root, 'node_modules'), { recursive: true });
+                const mainTs = path.join(root, 'main.ts');
+                if (!existsSync(mainTs)) {
+                    writeFileSync(mainTs, '');
+                }
             } else if (lang === 'rust') {
                 mkdirSync(path.join(root, '.cargo', 'registry'), { recursive: true });
+                mkdirSync(path.join(root, 'src'), { recursive: true });
                 const cargoToml = path.join(root, 'Cargo.toml');
                 if (!existsSync(cargoToml)) {
                     writeFileSync(cargoToml, '[package]\nname = "workspace"\nversion = "0.1.0"\nedition = "2021"\n\n[dependencies]\n');
+                }
+                const mainRs = path.join(root, 'src', 'main.rs');
+                if (!existsSync(mainRs)) {
+                    writeFileSync(mainRs, 'fn main() {\n}\n');
+                }
+            } else if (lang === 'protobuf') {
+                const bufYaml = path.join(root, 'buf.yaml');
+                if (!existsSync(bufYaml)) {
+                    writeFileSync(bufYaml, 'version: v1\nlint:\n  use:\n    - DEFAULT\n  except:\n    - PACKAGE_DIRECTORY_MATCH\n    - PACKAGE_VERSION_SUFFIX\n    - RPC_REQUEST_RESPONSE_UNIQUE\n    - RPC_RESPONSE_STANDARD_NAME\n    - RPC_REQUEST_STANDARD_NAME\n    - SERVICE_SUFFIX\n');
+                }
+                const mainProto = path.join(root, 'main.proto');
+                if (!existsSync(mainProto)) {
+                    writeFileSync(mainProto, 'syntax = "proto3";\n\npackage main;\n');
                 }
             }
         } catch (e: any) {
