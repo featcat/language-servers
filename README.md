@@ -93,10 +93,53 @@ The `buf lsp` handles Protobuf functionality. Due to a known edge-case upstream 
 ```javascript
 // Example Frontend Reconnect Schema
 socket.onclose = () => {
-   setTimeout(() => reconnectLanguageClient(), 1000); 
+    setTimeout(() => reconnectLanguageClient(), 1000);
 };
 ```
 This ensures high frontend availability even if a backend LSP process undergoes an unexpected crash.
+
+## Nginx Reverse Proxy Configuration
+
+When deploying in a production environment, you will likely need to expose these language servers securely over WebSockets (`wss://`). Below is a dynamic regular expression configuration for Nginx that maps a single URL structure (e.g. `wss://domain.com/lsp/json`) directly to the underlying ports.
+
+```nginx
+# Place this map block in the top-level `http { ... }` context
+map $lsp_lang $lsp_port {
+    "json"       30000;
+    "python"     30001;
+    "typescript" 30002;
+    "golang"     30005;
+    "rust"       30006;
+    "protobuf"   30007;
+}
+
+server {
+    listen 443 ssl;
+    server_name domain.com;
+    
+    # ... ssl certificates ...
+
+    # Match routes like /lsp/python and capture the language name into $lsp_lang
+    location ~ ^/lsp/(?<lsp_lang>json|python|typescript|golang|rust|protobuf)$ {
+        proxy_pass http://127.0.0.1:$lsp_port/$lsp_lang;
+
+        # Protocol Upgrade bindings for WebSockets
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        
+        # Real IP Forwarding
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # IMPORTANT: Increase timeout settings so Nginx doesn't abruptly drop idle WebSocket connections
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+```
 
 ---
 
