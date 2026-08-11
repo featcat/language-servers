@@ -1,6 +1,6 @@
 FROM --platform=$BUILDPLATFORM node:20-bullseye AS builder
 WORKDIR /app
-COPY package.json tsconfig.json ./
+COPY package.json package-lock.json tsconfig.json ./
 RUN npm install
 COPY src ./src
 RUN npm run build
@@ -70,7 +70,7 @@ RUN cd /workspace/rust && cargo init --name workspace --vcs none && \
 
 WORKDIR /app
 
-COPY package.json tsconfig.json ./
+COPY package.json package-lock.json tsconfig.json ./
 
 RUN npm install --omit=dev
 
