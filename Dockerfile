@@ -16,7 +16,7 @@ RUN go install golang.org/x/tools/gopls@latest
 
 # Install buf (for Protobuf Language Server)
 RUN npm config set registry https://registry.npmmirror.com && \
-    npm install -g @bufbuild/buf
+    npm install -g @bufbuild/buf@1.72.0
 
 # Configure Rust mirrors
 ENV RUSTUP_DIST_SERVER="https://rsproxy.cn"
