@@ -1,3 +1,10 @@
+FROM --platform=$BUILDPLATFORM node:20-bullseye AS builder
+WORKDIR /app
+COPY package.json tsconfig.json ./
+RUN npm install
+COPY src ./src
+RUN npm run build
+
 FROM node:20-bullseye
 
 # Configure Debian mirrors and install Python
@@ -65,11 +72,9 @@ WORKDIR /app
 
 COPY package.json tsconfig.json ./
 
-RUN npm install
+RUN npm install --omit=dev
 
-COPY src ./src
-
-RUN npm run build
+COPY --from=builder /app/dist ./dist
 
 EXPOSE 30000 30001 30002 30005 30006 30007
 
